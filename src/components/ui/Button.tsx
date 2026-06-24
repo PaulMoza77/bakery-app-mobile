@@ -1,5 +1,5 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native'
-import { colors } from '@/theme/colors'
+import { useAppTheme } from '@/contexts/BrandingContext'
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger'
 
@@ -18,7 +18,28 @@ export function Button({
   disabled,
   loading,
 }: ButtonProps) {
+  const theme = useAppTheme()
   const isDisabled = disabled || loading
+
+  const variantStyle =
+    variant === 'primary'
+      ? { backgroundColor: theme.colors.accent }
+      : variant === 'secondary'
+        ? {
+            backgroundColor: theme.colors.surface,
+            borderWidth: 1,
+            borderColor: theme.colors.border,
+          }
+        : variant === 'danger'
+          ? { backgroundColor: theme.colors.danger }
+          : { backgroundColor: 'transparent' }
+
+  const textColor =
+    variant === 'primary' || variant === 'danger'
+      ? theme.colors.white
+      : variant === 'ghost'
+        ? theme.colors.accent
+        : theme.colors.brown
 
   return (
     <Pressable
@@ -26,15 +47,16 @@ export function Button({
       disabled={isDisabled}
       style={({ pressed }) => [
         styles.base,
-        styles[variant],
+        { borderRadius: theme.radii.button },
+        variantStyle,
         isDisabled && styles.disabled,
         pressed && !isDisabled && styles.pressed,
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'primary' ? colors.white : colors.accent} />
+        <ActivityIndicator color={textColor} />
       ) : (
-        <Text style={[styles.text, styles[`${variant}Text` as keyof typeof styles]]}>
+        <Text style={[styles.text, { color: textColor, fontFamily: theme.fonts.body }]}>
           {title}
         </Text>
       )}
@@ -45,24 +67,11 @@ export function Button({
 const styles = StyleSheet.create({
   base: {
     minHeight: 48,
-    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,
   },
-  primary: { backgroundColor: colors.accent },
-  secondary: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  ghost: { backgroundColor: 'transparent' },
-  danger: { backgroundColor: colors.danger },
   disabled: { opacity: 0.5 },
   pressed: { opacity: 0.85 },
   text: { fontSize: 16, fontWeight: '600' },
-  primaryText: { color: colors.white },
-  secondaryText: { color: colors.brown },
-  ghostText: { color: colors.accent },
-  dangerText: { color: colors.white },
 })

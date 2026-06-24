@@ -1,5 +1,5 @@
 import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native'
-import { colors } from '@/theme/colors'
+import { useAppTheme } from '@/contexts/BrandingContext'
 
 interface InputProps extends TextInputProps {
   label: string
@@ -7,15 +7,26 @@ interface InputProps extends TextInputProps {
 }
 
 export function Input({ label, error, style, ...props }: InputProps) {
+  const theme = useAppTheme()
+
   return (
     <View style={styles.wrap}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, { color: theme.colors.brown }]}>{label}</Text>
       <TextInput
-        placeholderTextColor={colors.brownMuted}
-        style={[styles.input, error && styles.inputError, style]}
+        placeholderTextColor={theme.colors.brownMuted}
+        style={[
+          styles.input,
+          {
+            borderColor: error ? theme.colors.danger : theme.colors.border,
+            backgroundColor: theme.colors.surface,
+            color: theme.colors.brown,
+            borderRadius: theme.radii.button,
+          },
+          style,
+        ]}
         {...props}
       />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? <Text style={[styles.error, { color: theme.colors.danger }]}>{error}</Text> : null}
     </View>
   )
 }
@@ -25,19 +36,13 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: colors.brown,
     marginBottom: 6,
   },
   input: {
     minHeight: 48,
-    borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.white,
     paddingHorizontal: 14,
     fontSize: 16,
-    color: colors.brown,
   },
-  inputError: { borderColor: colors.danger },
-  error: { marginTop: 4, fontSize: 13, color: colors.danger },
+  error: { marginTop: 4, fontSize: 13 },
 })

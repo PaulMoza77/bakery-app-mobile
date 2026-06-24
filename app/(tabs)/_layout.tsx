@@ -1,21 +1,26 @@
 import { Ionicons } from '@expo/vector-icons'
 import { Tabs } from 'expo-router'
 import { HeaderActions } from '@/components/layout/HeaderActions'
-import { colors } from '@/theme/colors'
+import { useAppTheme } from '@/contexts/BrandingContext'
 
 export default function TabLayout() {
+  const theme = useAppTheme()
+
   return (
     <Tabs
       screenOptions={({ route }) => ({
-        tabBarActiveTintColor: colors.accent,
-        tabBarInactiveTintColor: colors.brownMuted,
+        tabBarActiveTintColor: theme.colors.accent,
+        tabBarInactiveTintColor: theme.colors.brownMuted,
         tabBarStyle: {
-          backgroundColor: colors.white,
-          borderTopColor: colors.border,
+          backgroundColor: theme.colors.surface,
+          borderTopColor: theme.colors.border,
         },
-        headerStyle: { backgroundColor: colors.cream },
-        headerTintColor: colors.brown,
-        headerTitleStyle: { fontWeight: '700' },
+        headerStyle: { backgroundColor: theme.colors.cream },
+        headerTintColor: theme.colors.brown,
+        headerTitleStyle: {
+          fontWeight: '700',
+          fontFamily: theme.fonts.heading,
+        },
         headerShadowVisible: false,
         headerRight: route.name === 'menu' ? undefined : () => <HeaderActions />,
       })}
@@ -30,18 +35,20 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="events"
+        name="offers"
         options={{
-          title: 'Evenimente',
+          title: 'Oferte',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="sparkles-outline" size={size} color={color} />
+            <Ionicons name="pricetag-outline" size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="customize"
         options={{
-          title: 'Personalizează',
+          title: 'Torturi',
+          tabBarLabel: 'Torturi',
+          tabBarAccessibilityLabel: 'Configurator torturi personalizate',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="color-palette-outline" size={size} color={color} />
           ),

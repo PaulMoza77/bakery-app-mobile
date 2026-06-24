@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { useAppTheme } from '@/contexts/BrandingContext'
 import { useHeaderBadges } from '@/hooks/use-header-badges'
-import { colors } from '@/theme/colors'
 
 type IconName = keyof typeof Ionicons.glyphMap
 
@@ -14,20 +14,30 @@ interface ActionIconProps {
 }
 
 function ActionIcon({ name, label, badge, onPress }: ActionIconProps) {
+  const theme = useAppTheme()
   const showBadge = badge != null && badge > 0
 
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}
+      style={({ pressed }) => [
+        styles.iconBtn,
+        {
+          backgroundColor: theme.colors.surface,
+          borderColor: theme.colors.border,
+        },
+        pressed && { opacity: 0.75, backgroundColor: theme.colors.warm },
+      ]}
       accessibilityRole="button"
       accessibilityLabel={label}
       hitSlop={6}
     >
-      <Ionicons name={name} size={20} color={colors.brown} />
+      <Ionicons name={name} size={20} color={theme.colors.brown} />
       {showBadge ? (
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{badge > 99 ? '99+' : badge}</Text>
+        <View style={[styles.badge, { backgroundColor: theme.colors.accent, borderColor: theme.colors.white }]}>
+          <Text style={[styles.badgeText, { color: theme.colors.white }]}>
+            {badge > 99 ? '99+' : badge}
+          </Text>
         </View>
       ) : null}
     </Pressable>
@@ -75,11 +85,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.white,
     borderWidth: 1,
-    borderColor: colors.border,
   },
-  iconBtnPressed: { opacity: 0.75, backgroundColor: colors.warm },
   badge: {
     position: 'absolute',
     top: 2,
@@ -88,14 +95,11 @@ const styles = StyleSheet.create({
     height: 16,
     paddingHorizontal: 4,
     borderRadius: 8,
-    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: colors.white,
   },
   badgeText: {
-    color: colors.white,
     fontSize: 9,
     fontWeight: '700',
     lineHeight: 11,
