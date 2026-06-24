@@ -30,7 +30,9 @@ export interface SupportRepository {
   insertMessage(input: CreateMessageInput): Promise<SupportMessageRow>
   escalateThread(threadId: string): Promise<SupportThreadRow>
   assignAdmin(threadId: string, adminId: string): Promise<SupportThreadRow>
+  setAiTakeover(threadId: string): Promise<SupportThreadRow>
   closeThread(threadId: string): Promise<SupportThreadRow>
+  reopenThread(threadId: string): Promise<SupportThreadRow>
   markReadByClient(threadId: string): Promise<void>
   markReadByAdmin(threadId: string): Promise<void>
 }

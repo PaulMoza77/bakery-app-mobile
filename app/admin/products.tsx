@@ -1,3 +1,4 @@
+import { Image } from 'expo-image'
 import { useState } from 'react'
 import {
   ActivityIndicator,
@@ -5,12 +6,14 @@ import {
   FlatList,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
   TextInput,
   View,
 } from 'react-native'
+import { ProductImageField } from '@/components/admin/ProductImageField'
 import { Button } from '@/components/ui/Button'
 import { Screen } from '@/components/ui/Screen'
 import { useAdminProducts } from '@/hooks/use-admin-products'
@@ -44,6 +47,7 @@ export default function AdminProductsScreen() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<ProductWithCategory | null>(null)
   const [form, setForm] = useState<ProductInput>(emptyForm)
+  const [imageUploading, setImageUploading] = useState(false)
 
   function openCreate() {
     setEditing(null)
@@ -66,6 +70,15 @@ export default function AdminProductsScreen() {
   }
 
   async function save() {
+    if (!form.name.trim()) {
+      Alert.alert('Nume obligatoriu', 'Introdu numele produsului.')
+      return
+    }
+    if (imageUploading) {
+      Alert.alert('Imagine în curs', 'Așteaptă finalizarea încărcării imaginii.')
+      return
+    }
+
     const priceCents = Math.round(Number(form.price))
     const payload = { ...form, price: priceCents }
     try {
@@ -108,10 +121,19 @@ export default function AdminProductsScreen() {
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
           <Pressable style={styles.row} onPress={() => openEdit(item)}>
+            <View style={styles.thumbWrap}>
+              {item.image_url ? (
+                <Image source={{ uri: item.image_url }} style={styles.thumb} contentFit="cover" />
+              ) : (
+                <View style={styles.thumbPlaceholder}>
+                  <Text style={styles.thumbEmoji}>🥐</Text>
+                </View>
+              )}
+            </View>
             <View style={styles.rowBody}>
               <Text style={styles.name}>{item.name}</Text>
               <Text style={styles.meta}>
-                {getCategoryName(item) ?? '—'} · {formatPrice(item.price)}
+                {getCategoryName(item) ?? 'Fără categorie'} · {formatPrice(item.price)}
               </Text>
               <Text style={styles.meta}>
                 {item.is_active ? 'Activ' : 'Inactiv'}
@@ -126,10 +148,18 @@ export default function AdminProductsScreen() {
       />
 
       <Modal visible={modalOpen} animationType="slide" presentationStyle="pageSheet">
-        <View style={styles.modal}>
+        <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modal}>
           <Text style={styles.modalTitle}>
             {editing ? 'Editează produs' : 'Produs nou'}
           </Text>
+
+          <ProductImageField
+            value={form.image_url}
+            onChange={(image_url) => setForm((f) => ({ ...f, image_url }))}
+            productId={editing?.id}
+            onUploadingChange={setImageUploading}
+          />
+
           <TextInput
             style={styles.input}
             placeholder="Nume"
@@ -137,10 +167,11 @@ export default function AdminProductsScreen() {
             onChangeText={(name) => setForm((f) => ({ ...f, name }))}
           />
           <TextInput
-            style={styles.input}
+            style={[styles.input, styles.textArea]}
             placeholder="Descriere"
             value={form.description ?? ''}
             onChangeText={(description) => setForm((f) => ({ ...f, description }))}
+            multiline
           />
           <TextInput
             style={styles.input}
@@ -149,24 +180,34 @@ export default function AdminProductsScreen() {
             value={String(form.price)}
             onChangeText={(v) => setForm((f) => ({ ...f, price: Number(v) || 0 }))}
           />
+
           <Text style={styles.label}>Categorie</Text>
-          <View style={styles.chips}>
-            <Pressable
-              style={[styles.chip, !form.category_id && styles.chipOn]}
-              onPress={() => setForm((f) => ({ ...f, category_id: null }))}
-            >
-              <Text>—</Text>
-            </Pressable>
-            {categories.map((c) => (
+          {categories.length === 0 ? (
+            <Text style={styles.hint}>
+              Nu există categorii. Adaugă categorii din Admin → Categorii.
+            </Text>
+          ) : (
+            <View style={styles.chips}>
               <Pressable
-                key={c.id}
-                style={[styles.chip, form.category_id === c.id && styles.chipOn]}
-                onPress={() => setForm((f) => ({ ...f, category_id: c.id }))}
+                style={[styles.chip, !form.category_id && styles.chipOn]}
+                onPress={() => setForm((f) => ({ ...f, category_id: null }))}
               >
-                <Text>{c.name}</Text>
+                <Text style={!form.category_id ? styles.chipTextOn : undefined}>Fără</Text>
               </Pressable>
-            ))}
-          </View>
+              {categories.map((c) => (
+                <Pressable
+                  key={c.id}
+                  style={[styles.chip, form.category_id === c.id && styles.chipOn]}
+                  onPress={() => setForm((f) => ({ ...f, category_id: c.id }))}
+                >
+                  <Text style={form.category_id === c.id ? styles.chipTextOn : undefined}>
+                    {c.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+
           <View style={styles.switchRow}>
             <Text>Activ</Text>
             <Switch
@@ -183,9 +224,14 @@ export default function AdminProductsScreen() {
           </View>
           <View style={styles.modalActions}>
             <Button title="Anulează" variant="secondary" onPress={() => setModalOpen(false)} />
-            <Button title="Salvează" onPress={() => void save()} loading={saving} />
+            <Button
+              title="Salvează"
+              onPress={() => void save()}
+              loading={saving}
+              disabled={imageUploading}
+            />
           </View>
-        </View>
+        </ScrollView>
       </Modal>
     </View>
   )
@@ -205,6 +251,8 @@ const styles = StyleSheet.create({
   addText: { color: colors.white, fontWeight: '700' },
   row: {
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     padding: 14,
     backgroundColor: colors.white,
     borderRadius: 12,
@@ -212,12 +260,23 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  thumbWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 10,
+    overflow: 'hidden',
+    backgroundColor: colors.warm,
+  },
+  thumb: { width: '100%', height: '100%' },
+  thumbPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  thumbEmoji: { fontSize: 24 },
   rowBody: { flex: 1 },
   name: { fontWeight: '700', color: colors.brown, fontSize: 16 },
   meta: { fontSize: 13, color: colors.brownMuted, marginTop: 2 },
   delete: { color: colors.danger, fontSize: 13 },
   error: { color: colors.danger, padding: 16 },
-  modal: { flex: 1, padding: 20, backgroundColor: colors.cream },
+  modalScroll: { flex: 1, backgroundColor: colors.cream },
+  modal: { padding: 20, paddingBottom: 40 },
   modalTitle: { fontSize: 20, fontWeight: '700', marginBottom: 16, color: colors.brown },
   input: {
     borderWidth: 1,
@@ -227,7 +286,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     backgroundColor: colors.white,
   },
+  textArea: { minHeight: 88, textAlignVertical: 'top' },
   label: { fontWeight: '600', marginBottom: 6, color: colors.brown },
+  hint: { fontSize: 13, color: colors.brownMuted, marginBottom: 12, lineHeight: 18 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
   chip: {
     paddingHorizontal: 10,
@@ -238,6 +299,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   chipOn: { borderColor: colors.accent, backgroundColor: '#FFF5F2' },
+  chipTextOn: { color: colors.accent, fontWeight: '700' },
   switchRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

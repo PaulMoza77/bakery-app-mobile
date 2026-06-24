@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { SupportComposer } from '@/components/support/SupportComposer'
 import { SupportMessageList } from '@/components/support/SupportMessageList'
 import { Button } from '@/components/ui/Button'
@@ -23,24 +24,25 @@ export default function AdminSupportThreadScreen() {
     loading,
     sending,
     error,
+    retryText,
     sendMessage,
     joinConversation,
     closeConversation,
+    reopenConversation,
   } = useAdminSupportThread(id)
 
   const closed = thread?.status === 'closed'
-  const needsJoin = thread && !thread.assigned_admin_id && thread.status !== 'closed'
+  const needsJoin = thread && !thread.assigned_admin_id && !closed
 
   return (
-    <KeyboardAvoidingView
-      style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={88}
-    >
+    <SafeAreaView style={styles.root} edges={['bottom']}>
       {thread && (
         <View style={styles.statusBar}>
           <Text style={styles.status}>
             {supportThreadStatusLabels[thread.status]}
+            {thread.ai_enabled && !thread.ai_takeover && !thread.assigned_admin_id
+              ? ' · AI activ'
+              : ''}
           </Text>
           {needsJoin ? (
             <Button
@@ -49,7 +51,13 @@ export default function AdminSupportThreadScreen() {
               onPress={() => void joinConversation()}
             />
           ) : null}
-          {!closed && (
+          {closed ? (
+            <Button
+              title="Redeschide"
+              variant="secondary"
+              onPress={() => void reopenConversation()}
+            />
+          ) : (
             <Button
               title="Închide"
               variant="ghost"
@@ -61,27 +69,35 @@ export default function AdminSupportThreadScreen() {
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      {loading ? (
-        <ActivityIndicator style={styles.loader} color={colors.accent} />
-      ) : (
-        <>
-          <View style={styles.messages}>
-            <SupportMessageList messages={thread?.messages ?? []} />
-          </View>
-          <SupportComposer
-            onSend={sendMessage}
-            sending={sending}
-            disabled={closed}
-            placeholder={closed ? 'Conversație închisă' : 'Răspunde clientului…'}
-          />
-        </>
-      )}
-    </KeyboardAvoidingView>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+      >
+        {loading ? (
+          <ActivityIndicator style={styles.loader} color={colors.accent} />
+        ) : (
+          <>
+            <View style={styles.messages}>
+              <SupportMessageList messages={thread?.messages ?? []} />
+            </View>
+            <SupportComposer
+              onSend={sendMessage}
+              sending={sending}
+              disabled={closed}
+              retryText={retryText}
+              placeholder={closed ? 'Conversație închisă' : 'Răspunde clientului…'}
+            />
+          </>
+        )}
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.cream },
+  flex: { flex: 1 },
   statusBar: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -94,7 +110,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   status: { fontSize: 13, fontWeight: '600', color: colors.brown, marginRight: 'auto' },
-  error: { padding: 12, fontSize: 14, color: '#B42318' },
+  error: { padding: 12, fontSize: 14, color: colors.danger },
   loader: { marginTop: 40 },
   messages: { flex: 1 },
 })

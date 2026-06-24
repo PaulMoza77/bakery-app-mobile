@@ -10,7 +10,10 @@ import {
 import type { Session, User } from '@supabase/supabase-js'
 import { signInWithGoogleOAuth, createSessionFromOAuthUrl } from '@/lib/auth/oauth'
 import { isAdminRole } from '@/lib/auth/profile-role'
-import { resolveProfileForUser } from '@/lib/database/queries/profile'
+import {
+  fetchResolvedProfileForUser,
+  resolveProfileForUser,
+} from '@/lib/database/queries/profile'
 import {
   isSupabaseConfigured,
   supabase,
@@ -60,13 +63,6 @@ const notConfiguredResult: AuthResult = {
   role: null,
 }
 
-function logAuthState(user: User | null, profile: Profile | null) {
-  if (!__DEV__) return
-  console.log('[Auth] user email:', user?.email ?? '(none)')
-  console.log('[Auth] profile role:', profile?.role ?? '(none)')
-  console.log('[Auth] isAdmin:', isAdminRole(profile?.role))
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [user, setUser] = useState<User | null>(null)
@@ -86,7 +82,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfileError(null)
       setProfileLoading(false)
       setRoleResolved(true)
-      logAuthState(null, null)
       return null
     }
 
@@ -100,7 +95,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfileError(nextProfileError)
     setProfileLoading(false)
     setRoleResolved(true)
-    logAuthState(nextUser, nextProfile)
 
     return nextProfile?.role ?? null
   }, [])
@@ -230,9 +224,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshProfile = useCallback(
     async (silent = false) => {
       if (!session?.user) return
-      if (!silent) setProfileLoading(true)
+      if (!silent) {
+        setProfileLoading(true)
+        setRoleResolved(false)
+      }
       const { profile: nextProfile, error: nextProfileError } =
-        await resolveProfileForUser(session.user)
+        await fetchResolvedProfileForUser(session.user)
       setProfile(nextProfile)
       setProfileError(nextProfileError)
       if (!silent) setProfileLoading(false)

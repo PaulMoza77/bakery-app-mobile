@@ -11,6 +11,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { Screen } from '@/components/ui/Screen'
 import { Button } from '@/components/ui/Button'
 import { useAdminSupportInbox } from '@/hooks/use-admin-support'
+import { formatMessageTime } from '@/lib/format/date'
 import { supportThreadStatusLabels } from '@/lib/support/status-labels'
 import { colors } from '@/theme/colors'
 import type { SupportThreadWithClient } from '@/lib/support/types'
@@ -24,6 +25,7 @@ function ThreadRow({
 }) {
   const label =
     thread.client_name?.trim() || thread.client_email || 'Client necunoscut'
+  const activityAt = thread.last_message_at ?? thread.updated_at
 
   return (
     <Pressable
@@ -36,30 +38,37 @@ function ThreadRow({
         </Text>
         {thread.unread_for_admin ? <View style={styles.dot} /> : null}
       </View>
-      <Text style={styles.meta}>
-        {supportThreadStatusLabels[thread.status]}
-        {thread.ai_failed ? ' · AI eșuat' : ''}
-      </Text>
+      <View style={styles.metaRow}>
+        <Text style={styles.meta}>{supportThreadStatusLabels[thread.status]}</Text>
+        <Text style={styles.time}>{formatMessageTime(activityAt)}</Text>
+      </View>
+      {thread.last_message_sender === 'ai' && !thread.unread_for_admin ? (
+        <Text style={styles.aiTag}>Ultimul răspuns: AI</Text>
+      ) : null}
       {thread.last_message_preview ? (
         <Text style={styles.preview} numberOfLines={2}>
           {thread.last_message_preview}
         </Text>
-      ) : null}
+      ) : (
+        <Text style={styles.previewMuted}>Niciun mesaj încă</Text>
+      )}
     </Pressable>
   )
 }
 
 export default function AdminSupportInboxScreen() {
   const router = useRouter()
-  const { threads, loading, refreshing, error, refetch } = useAdminSupportInbox()
-  const escalatedCount = threads.filter((t) => t.ai_failed || t.status === 'escalated').length
+  const { threads, pendingEscalations, unreadCount, loading, refreshing, error, refetch } =
+    useAdminSupportInbox()
 
   return (
     <Screen scroll={false} padded={false}>
-      {escalatedCount > 0 && (
+      {(unreadCount > 0 || pendingEscalations.length > 0) && (
         <View style={styles.banner}>
           <Text style={styles.bannerText}>
-            {escalatedCount} conversații escaladate necesită atenție
+            {unreadCount > 0
+              ? `${unreadCount} conversații cu mesaje necitite`
+              : `${pendingEscalations.length} conversații escaladate de la AI`}
           </Text>
         </View>
       )}
@@ -78,7 +87,7 @@ export default function AdminSupportInboxScreen() {
       ) : threads.length === 0 ? (
         <EmptyState
           title="Inbox gol"
-          description="Conversațiile clienților vor apărea aici."
+          description="Conversațiile clienților vor apărea aici în timp real."
         />
       ) : (
         <FlatList
@@ -104,7 +113,7 @@ const styles = StyleSheet.create({
   row: {
     padding: 14,
     marginBottom: 10,
-    borderRadius: 14,
+    borderRadius: 16,
     backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: colors.border,
@@ -117,10 +126,19 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: colors.accent,
   },
-  meta: { fontSize: 12, color: colors.brownMuted, marginTop: 4 },
+  metaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4,
+    gap: 8,
+  },
+  meta: { fontSize: 12, color: colors.brownMuted },
+  time: { fontSize: 11, color: colors.brownMuted },
+  aiTag: { fontSize: 11, color: colors.accent, fontWeight: '600', marginTop: 6 },
   preview: { fontSize: 14, color: colors.brown, marginTop: 8, lineHeight: 20 },
-  error: { padding: 12, color: '#B42318', fontSize: 14 },
-  errorInline: { padding: 12, color: '#B42318', fontSize: 13 },
+  previewMuted: { fontSize: 13, color: colors.brownMuted, marginTop: 8, fontStyle: 'italic' },
+  error: { padding: 12, color: colors.danger, fontSize: 14 },
+  errorInline: { padding: 12, color: colors.danger, fontSize: 13 },
   errorBlock: { padding: 16, gap: 10 },
   banner: {
     margin: 12,

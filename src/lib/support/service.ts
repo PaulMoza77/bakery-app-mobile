@@ -1,20 +1,22 @@
-import { PlaceholderAiSupportProvider } from '@/lib/support/ai/placeholder-provider'
-import type { AiSupportProvider } from '@/lib/support/ai/types'
+import { shouldAiReplyToClient } from '@/lib/support/ai/policy'
 import { PlaceholderAdminNotifier } from '@/lib/support/notifications/placeholder-notifier'
 import type { AdminNotifier } from '@/lib/support/notifications/types'
 import type { SupportRepository } from '@/lib/support/repository/types'
 import type {
-  AdminSendMessageInput,
   AdminEscalationNotification,
+  AdminSendMessageInput,
   SendClientMessageInput,
   SendClientMessageResult,
 } from '@/lib/support/types'
 import type { SupportMessageRow, SupportThreadRow } from '@/types/database'
+import { generateSupportAiReply } from '@/services/support-ai'
+
+const AI_HANDOFF_MESSAGE =
+  'Nu am un răspuns sigur pentru întrebarea ta. Am trimis conversația către echipă — un coleg te va răspunde aici în curând.'
 
 export class SupportService {
   constructor(
     private readonly repository: SupportRepository,
-    private readonly ai: AiSupportProvider = new PlaceholderAiSupportProvider(),
     private readonly notifier: AdminNotifier = new PlaceholderAdminNotifier(),
   ) {}
 
@@ -32,78 +34,75 @@ export class SupportService {
       message: input.message.trim(),
     })
 
-    if (thread.status === 'escalated') {
-      await this.repository.markReadByClient(thread.id)
-      const full = await this.repository.getThreadForUser(
-        input.userId,
-        thread.id,
-      )
-      return {
-        thread: full ?? thread,
-        clientMessage,
-        aiMessage: null,
-        escalated: true,
+    let aiMessage: SupportMessageRow | null = null
+    let escalated = false
+    let aiUnavailable = false
+
+    const humanHandlesThread =
+      thread.status === 'escalated' ||
+      thread.ai_takeover ||
+      Boolean(thread.assigned_admin_id)
+
+    if (!humanHandlesThread && shouldAiReplyToClient(thread)) {
+      try {
+        const history = await this.loadMessages(thread.id, input.userId)
+        const aiResult = await generateSupportAiReply({
+          threadId: thread.id,
+          userMessage: input.message.trim(),
+          history,
+        })
+
+        if (aiResult.message && !aiResult.shouldEscalate) {
+          aiMessage = await this.repository.insertMessage({
+            threadId: thread.id,
+            senderId: null,
+            senderType: 'ai',
+            message: aiResult.message,
+          })
+        } else if (aiResult.shouldEscalate) {
+          try {
+            const escalatedThread = await this.repository.escalateThread(
+              thread.id,
+            )
+            escalated = true
+            aiMessage = await this.repository.insertMessage({
+              threadId: thread.id,
+              senderId: null,
+              senderType: 'ai',
+              message: AI_HANDOFF_MESSAGE,
+            })
+            await this.notifyAdmin({
+              thread: escalatedThread,
+              userId: input.userId,
+              preview: input.message,
+              reason: aiResult.logNote ?? 'Escaladare automată',
+            })
+          } catch {
+            aiUnavailable = true
+          }
+        }
+      } catch {
+        aiUnavailable = true
       }
     }
 
-    const history = await this.loadMessages(thread.id, input.userId)
-    const aiResult = await this.ai.generateReply({
-      threadId: thread.id,
-      userMessage: input.message,
-      history,
-    })
-
-    if (aiResult.resolved && aiResult.message) {
-      const aiMessage = await this.repository.insertMessage({
-        threadId: thread.id,
-        senderId: null,
-        senderType: 'ai',
-        message: aiResult.message,
-      })
+    try {
       await this.repository.markReadByClient(thread.id)
-      const full = await this.repository.getThreadForUser(
-        input.userId,
-        thread.id,
-      )
-      return {
-        thread: full ?? thread,
-        clientMessage,
-        aiMessage,
-        escalated: false,
-      }
+    } catch {
+      // read columns may be missing on older DBs
     }
-
-    const escalatedThread = await this.repository.escalateThread(thread.id)
-
-    await this.repository.insertMessage({
-      threadId: thread.id,
-      senderId: null,
-      senderType: 'ai',
-      message:
-        'Nu am un răspuns sigur pentru întrebarea ta. Am escaladat conversația — un coleg din echipă te va răspunde aici în curând.',
-    })
-
-    await this.notifyAdmin({
-      thread: escalatedThread,
-      userId: input.userId,
-      preview: input.message,
-      reason: aiResult.reason ?? 'AI nu a putut răspunde',
-    })
-
-    await this.repository.markReadByClient(thread.id)
 
     const full = await this.repository.getThreadForUser(
       input.userId,
-      escalatedThread.id,
+      thread.id,
     )
-    const aiFallback =
-      full?.messages.filter((m) => m.sender_type === 'ai').at(-1) ?? null
 
     return {
-      thread: full ?? escalatedThread,
+      thread: full ?? thread,
       clientMessage,
-      aiMessage: aiFallback,
-      escalated: true,
+      aiMessage,
+      escalated: escalated || thread.status === 'escalated' || thread.ai_failed,
+      aiUnavailable,
     }
   }
 
@@ -111,8 +110,14 @@ export class SupportService {
     const thread = await this.repository.getThreadAdmin(input.threadId)
     if (!thread) throw new Error('Conversația nu există.')
 
+    if (thread.status === 'closed') {
+      await this.repository.reopenThread(input.threadId)
+    }
+
     if (!thread.assigned_admin_id) {
       await this.repository.assignAdmin(input.threadId, input.adminId)
+    } else {
+      await this.repository.setAiTakeover(input.threadId)
     }
 
     const message = await this.repository.insertMessage({
@@ -128,12 +133,17 @@ export class SupportService {
 
   async joinAsAdmin(threadId: string, adminId: string): Promise<SupportThreadRow> {
     const thread = await this.repository.assignAdmin(threadId, adminId)
+    await this.repository.setAiTakeover(threadId)
     await this.repository.markReadByAdmin(threadId)
     return thread
   }
 
   async closeThread(threadId: string): Promise<SupportThreadRow> {
     return this.repository.closeThread(threadId)
+  }
+
+  async reopenThread(threadId: string): Promise<SupportThreadRow> {
+    return this.repository.reopenThread(threadId)
   }
 
   private async resolveThread(
@@ -143,7 +153,7 @@ export class SupportService {
     const thread = await this.repository.getThreadForUser(userId, threadId)
     if (!thread) throw new Error('Conversația nu există.')
     if (thread.status === 'closed') {
-      throw new Error('Conversația este închisă. Deschide una nouă din meniu.')
+      throw new Error('Conversația este închisă. Deschide una nouă din chat.')
     }
     return thread
   }

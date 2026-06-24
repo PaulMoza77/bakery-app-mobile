@@ -12,7 +12,10 @@ import {
 } from 'react-native'
 import { Button } from '@/components/ui/Button'
 import { useAdminProducts } from '@/hooks/use-admin-products'
-import type { CategoryInput } from '@/lib/database/queries/categories'
+import {
+  countProductsInCategory,
+  type CategoryInput,
+} from '@/lib/database/queries/categories'
 import type { CategoryRow } from '@/types/database'
 import { colors } from '@/theme/colors'
 
@@ -26,6 +29,7 @@ const emptyForm: CategoryInput = {
 export default function AdminCategoriesScreen() {
   const {
     categories,
+    products,
     loading,
     saving,
     error,
@@ -36,6 +40,7 @@ export default function AdminCategoriesScreen() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<CategoryRow | null>(null)
   const [form, setForm] = useState<CategoryInput>(emptyForm)
+  const [checkingDelete, setCheckingDelete] = useState<string | null>(null)
 
   function openCreate() {
     setEditing(null)
@@ -55,6 +60,10 @@ export default function AdminCategoriesScreen() {
   }
 
   async function save() {
+    if (!form.name.trim() || !form.slug.trim()) {
+      Alert.alert('Date incomplete', 'Numele și slug-ul sunt obligatorii.')
+      return
+    }
     try {
       if (editing) await updateCategory(editing.id, form)
       else await createCategory(form)
@@ -62,6 +71,41 @@ export default function AdminCategoriesScreen() {
     } catch {
       /* hook handles error */
     }
+  }
+
+  function productCountForCategory(categoryId: string) {
+    return products.filter((p) => p.category_id === categoryId).length
+  }
+
+  async function confirmDeleteCategory(c: CategoryRow) {
+    const localCount = productCountForCategory(c.id)
+    setCheckingDelete(c.id)
+    const remote = await countProductsInCategory(c.id)
+    setCheckingDelete(null)
+
+    const count = Math.max(localCount, remote.data)
+    if (remote.error && localCount === 0) {
+      Alert.alert('Eroare', remote.error)
+      return
+    }
+
+    if (count > 0) {
+      Alert.alert(
+        'Categorie în uz',
+        `„${c.name}" are ${count} produs${count === 1 ? '' : 'e'}. Mută sau șterge produsele înainte de a șterge categoria.`,
+        [{ text: 'OK' }],
+      )
+      return
+    }
+
+    Alert.alert('Șterge categorie', `Ștergi „${c.name}"?`, [
+      { text: 'Anulează', style: 'cancel' },
+      {
+        text: 'Șterge',
+        style: 'destructive',
+        onPress: () => void deleteCategory(c.id),
+      },
+    ])
   }
 
   if (loading) {
@@ -82,28 +126,30 @@ export default function AdminCategoriesScreen() {
         data={categories}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
-        renderItem={({ item }) => (
-          <Pressable style={styles.row} onPress={() => openEdit(item)}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.name}>{item.name}</Text>
-              <Text style={styles.meta}>{item.slug}</Text>
-            </View>
-            <Pressable
-              onPress={() =>
-                Alert.alert('Șterge', item.name, [
-                  { text: 'Anulează', style: 'cancel' },
-                  {
-                    text: 'Șterge',
-                    style: 'destructive',
-                    onPress: () => void deleteCategory(item.id),
-                  },
-                ])
-              }
-            >
-              <Text style={styles.delete}>Șterge</Text>
+        renderItem={({ item }) => {
+          const count = productCountForCategory(item.id)
+          return (
+            <Pressable style={styles.row} onPress={() => openEdit(item)}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.name}>{item.name}</Text>
+                <Text style={styles.meta}>
+                  {item.slug}
+                  {count > 0 ? ` · ${count} produs${count === 1 ? '' : 'e'}` : ''}
+                </Text>
+              </View>
+              <Pressable
+                disabled={checkingDelete === item.id}
+                onPress={() => void confirmDeleteCategory(item)}
+              >
+                {checkingDelete === item.id ? (
+                  <ActivityIndicator size="small" color={colors.danger} />
+                ) : (
+                  <Text style={styles.delete}>Șterge</Text>
+                )}
+              </Pressable>
             </Pressable>
-          </Pressable>
-        )}
+          )
+        }}
       />
       <Modal visible={modalOpen} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modal}>
@@ -131,7 +177,7 @@ export default function AdminCategoriesScreen() {
           />
           <TextInput
             style={styles.input}
-            placeholder="Sort order"
+            placeholder="Ordine sortare"
             keyboardType="number-pad"
             value={String(form.sort_order)}
             onChangeText={(v) =>

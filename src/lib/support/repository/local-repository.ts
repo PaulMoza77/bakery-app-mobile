@@ -63,8 +63,11 @@ export class LocalSupportRepository implements SupportRepository {
       status: 'open',
       assigned_admin_id: null,
       ai_failed: false,
+      ai_enabled: true,
+      ai_takeover: false,
       client_last_read_at: null,
       admin_last_read_at: null,
+      last_message_at: null,
       created_at: now(),
       updated_at: now(),
     }
@@ -163,11 +166,13 @@ export class LocalSupportRepository implements SupportRepository {
       sender_id: input.senderId,
       sender_type: input.senderType,
       message: input.message,
+      is_ai: input.senderType === 'ai',
       created_at: now(),
     }
 
     store.messages.push(message)
     thread.updated_at = now()
+    thread.last_message_at = now()
     saveStore(store)
     return message
   }
@@ -191,7 +196,17 @@ export class LocalSupportRepository implements SupportRepository {
     const thread = store.threads.find((t) => t.id === threadId)
     if (!thread) throw new Error('Conversația nu există.')
     thread.assigned_admin_id = adminId
-    thread.status = 'escalated'
+    thread.ai_takeover = true
+    thread.updated_at = now()
+    saveStore(store)
+    return thread
+  }
+
+  async setAiTakeover(threadId: string): Promise<SupportThreadRow> {
+    const store = loadStore()
+    const thread = store.threads.find((t) => t.id === threadId)
+    if (!thread) throw new Error('Conversația nu există.')
+    thread.ai_takeover = true
     thread.updated_at = now()
     saveStore(store)
     return thread
@@ -202,6 +217,16 @@ export class LocalSupportRepository implements SupportRepository {
     const thread = store.threads.find((t) => t.id === threadId)
     if (!thread) throw new Error('Conversația nu există.')
     thread.status = 'closed'
+    thread.updated_at = now()
+    saveStore(store)
+    return thread
+  }
+
+  async reopenThread(threadId: string): Promise<SupportThreadRow> {
+    const store = loadStore()
+    const thread = store.threads.find((t) => t.id === threadId)
+    if (!thread) throw new Error('Conversația nu există.')
+    thread.status = 'open'
     thread.updated_at = now()
     saveStore(store)
     return thread

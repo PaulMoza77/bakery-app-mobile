@@ -1,20 +1,12 @@
 import { useRouter } from 'expo-router'
-import { useState } from 'react'
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native'
-import { ProductCard } from '@/components/products/ProductCard'
-import { Button } from '@/components/ui/Button'
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
+import { ProductHorizontalSection } from '@/components/products/ProductHorizontalSection'
+import { ProductSectionCard } from '@/components/products/ProductSectionCard'
+import { AtelierePromoCard } from '@/components/atelier/AtelierePromoCard'
 import { Card } from '@/components/ui/Card'
-import { EmptyState } from '@/components/ui/EmptyState'
 import { Screen } from '@/components/ui/Screen'
 import { SupabaseNotice } from '@/components/ui/SupabaseNotice'
+import { useProductFeaturedSections } from '@/hooks/use-product-featured-sections'
 import { useProductsCatalog } from '@/hooks/use-products-catalog'
 import { formatCountdownDisplay, getCountdownParts } from '@/lib/drops'
 import { colors } from '@/theme/colors'
@@ -22,30 +14,41 @@ import { colors } from '@/theme/colors'
 export default function ProductsTab() {
   const router = useRouter()
   const {
-    products,
-    categories,
     primaryDrop,
+    catalogSections,
+    popularFromDb,
+    restockedFromDb,
+    allProducts,
+    liveDrops,
+    featuredDbOk,
     loading,
-    error,
     configured,
-    search,
-    setSearch,
-    categoryId,
-    setCategoryId,
-    refetch,
   } = useProductsCatalog()
+  const { popularProducts, restockedProducts } = useProductFeaturedSections(
+    allProducts,
+    popularFromDb,
+    restockedFromDb,
+    liveDrops,
+    featuredDbOk,
+  )
+
+  function openProduct(productId: string) {
+    if (productId.startsWith('mock-')) return
+    router.push(`/product/${productId}`)
+  }
 
   return (
-    <Screen>
+    <Screen compactTop>
       <Card variant="hero" style={styles.hero}>
-        <Text style={styles.heroOverline}>Proaspăt din cuptor</Text>
-        <Text style={styles.heroTitle}>Gusturi care îți fac dimineața mai bună</Text>
+        <Text style={styles.heroTitle}>Proaspăt din laborator</Text>
         <Text style={styles.heroSub}>
-          Drop-uri programate cu stoc limitat. Precomandă torturile tale.
+          Alege o categorie și descoperă produsele noastre.
         </Text>
       </Card>
 
       {!configured && <SupabaseNotice />}
+
+      <AtelierePromoCard />
 
       {!loading && primaryDrop && primaryDrop.phase === 'live' && (
         <Pressable
@@ -64,84 +67,46 @@ export default function ProductsTab() {
       )}
 
       {loading ? (
-        <ActivityIndicator color={colors.accent} style={{ marginTop: 32 }} />
+        <ActivityIndicator color={colors.accent} style={styles.loader} />
       ) : (
         <>
-          <Text style={styles.label}>Caută produse</Text>
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Caută croissant, tort, ecler…"
-            placeholderTextColor={colors.brownMuted}
-            style={styles.search}
-          />
-
-          <View style={styles.chips}>
-            <Pressable
-              style={[styles.chip, !categoryId && styles.chipActive]}
-              onPress={() => setCategoryId(null)}
-            >
-              <Text style={[styles.chipText, !categoryId && styles.chipTextActive]}>Toate</Text>
-            </Pressable>
-            {categories.map((c) => (
-              <Pressable
-                key={c.id}
-                style={[styles.chip, categoryId === c.id && styles.chipActive]}
-                onPress={() => setCategoryId(c.id)}
-              >
-                <Text
-                  style={[styles.chipText, categoryId === c.id && styles.chipTextActive]}
-                >
-                  {c.name}
-                </Text>
-              </Pressable>
+          <View style={styles.grid}>
+            {catalogSections.map((section) => (
+              <View key={section.slug} style={styles.gridItem}>
+                <ProductSectionCard section={section} />
+              </View>
             ))}
           </View>
 
-          {error && products.length === 0 ? (
-            <View>
-              <EmptyState
-                title={
-                  !configured ? 'Supabase nu este configurat' : 'Nu am putut încărca produsele'
-                }
-                description={error}
-              />
-              <Button
-                title="Încearcă din nou"
-                variant="secondary"
-                onPress={() => void refetch()}
-              />
-            </View>
-          ) : products.length === 0 ? (
-            <EmptyState title="Niciun produs" description="Revino curând pentru noutăți." />
-          ) : (
-            <FlatList
-              data={products}
-              keyExtractor={(item) => item.id}
-              numColumns={2}
-              columnWrapperStyle={styles.row}
-              scrollEnabled={false}
-              renderItem={({ item }) => (
-                <View style={styles.col}>
-                  <ProductCard
-                    product={item}
-                    onPress={() => router.push(`/product/${item.id}`)}
-                  />
-                </View>
-              )}
-            />
-          )}
+          <ProductHorizontalSection
+            title="Produse Populare"
+            products={popularProducts}
+            onProductPress={openProduct}
+          />
+
+          <ProductHorizontalSection
+            title="Produse revenite în stoc"
+            products={restockedProducts}
+            onProductPress={openProduct}
+          />
         </>
       )}
     </Screen>
   )
 }
 
+const HERO_BROWN = '#9A7B63'
+
 const styles = StyleSheet.create({
-  hero: { marginBottom: 16 },
-  heroOverline: { color: colors.accent, fontSize: 12, fontWeight: '700', letterSpacing: 1 },
-  heroTitle: { color: colors.white, fontSize: 22, fontWeight: '700', marginTop: 6 },
-  heroSub: { color: '#E8DDD0', fontSize: 14, marginTop: 8, lineHeight: 20 },
+  hero: {
+    marginBottom: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: HERO_BROWN,
+    borderColor: HERO_BROWN,
+  },
+  heroTitle: { color: colors.white, fontSize: 20, fontWeight: '700' },
+  heroSub: { color: '#F3EBE0', fontSize: 13, marginTop: 4, lineHeight: 18 },
   dropBanner: {
     backgroundColor: colors.accent,
     borderRadius: 14,
@@ -151,28 +116,14 @@ const styles = StyleSheet.create({
   dropLabel: { color: colors.white, fontSize: 11, fontWeight: '800', letterSpacing: 1 },
   dropName: { color: colors.white, fontSize: 18, fontWeight: '700', marginTop: 4 },
   dropCountdown: { color: '#FFE8E0', fontSize: 14, marginTop: 4 },
-  label: { fontSize: 14, fontWeight: '600', color: colors.brown, marginBottom: 6 },
-  search: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    minHeight: 44,
-    backgroundColor: colors.white,
-    marginBottom: 12,
+  loader: { marginTop: 32 },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 12,
   },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
+  gridItem: {
+    width: '48%',
   },
-  chipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  chipText: { fontSize: 13, color: colors.brown },
-  chipTextActive: { color: colors.white, fontWeight: '600' },
-  row: { gap: 12 },
-  col: { flex: 1 },
 })

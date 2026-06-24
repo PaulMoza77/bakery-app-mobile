@@ -3,17 +3,23 @@ import { fetchPublicDropsWithProducts } from '@/lib/database/queries/drops'
 import {
   fetchActiveCategories,
   fetchActiveProducts,
+  fetchBackInStockProducts,
+  fetchPopularProducts,
   fetchPreorderProducts,
 } from '@/lib/database/queries/products'
 import { getCategoryName } from '@/lib/database/mappers'
 import { enrichDrop, sortEnrichedDrops } from '@/lib/drops'
 import { partitionDrops, pickPrimaryDrop } from '@/lib/drops/selectors'
+import { resolveProductCatalogSections } from '@/lib/products/catalog-sections'
 import type { DropProductSummary } from '@/lib/drops/types'
 import type { CategoryRow, ProductWithCategory } from '@/types/database'
 
 export function useProductsCatalog() {
   const [products, setProducts] = useState<ProductWithCategory[]>([])
   const [categories, setCategories] = useState<CategoryRow[]>([])
+  const [popularFromDb, setPopularFromDb] = useState<ProductWithCategory[]>([])
+  const [restockedFromDb, setRestockedFromDb] = useState<ProductWithCategory[]>([])
+  const [featuredDbOk, setFeaturedDbOk] = useState(true)
   const [rawDrops, setRawDrops] = useState<Awaited<
     ReturnType<typeof fetchPublicDropsWithProducts>
   >['data']>([])
@@ -29,12 +35,14 @@ export function useProductsCatalog() {
     setLoading(true)
     setError(null)
 
-    const [productsRes, categoriesRes, dropsRes, preordersRes] =
+    const [productsRes, categoriesRes, dropsRes, preordersRes, popularRes, restockedRes] =
       await Promise.all([
         fetchActiveProducts(),
         fetchActiveCategories(),
         fetchPublicDropsWithProducts(),
         fetchPreorderProducts(),
+        fetchPopularProducts(),
+        fetchBackInStockProducts(),
       ])
 
     setConfigured(
@@ -54,6 +62,14 @@ export function useProductsCatalog() {
 
     setProducts(productsRes.data)
     setCategories(categoriesRes.data)
+    setPopularFromDb(popularRes.data)
+    setRestockedFromDb(restockedRes.data)
+    setFeaturedDbOk(
+      productsRes.configured &&
+        !productsRes.error &&
+        !popularRes.error &&
+        !restockedRes.error,
+    )
     setRawDrops(dropsRes.data)
     setPreorders(
       preordersRes.data.map((p) => ({
@@ -106,9 +122,19 @@ export function useProductsCatalog() {
     })
   }, [products, search, categoryId])
 
+  const catalogSections = useMemo(
+    () => resolveProductCatalogSections(categories),
+    [categories],
+  )
+
   return {
     products: catalogProducts,
+    allProducts: products,
     categories,
+    catalogSections,
+    popularFromDb,
+    restockedFromDb,
+    featuredDbOk,
     enrichedDrops,
     liveDrops,
     upcomingDrops,

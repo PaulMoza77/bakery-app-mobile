@@ -9,6 +9,11 @@ const links = [
   { href: '/admin/orders', label: 'Comenzi', desc: 'Status și detalii' },
   { href: '/admin/custom-cakes', label: 'Torturi personalizate', desc: 'Comenzi customize' },
   { href: '/admin/support', label: 'Suport chat', desc: 'Inbox și răspunsuri clienți' },
+  {
+    href: '/admin/branding',
+    label: 'Branding / App Customizer',
+    desc: 'Culori, logo, fonturi, nume aplicație',
+  },
 ] as const
 
 export default function AdminDashboard() {

@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { useCallback } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { AppBrandMark } from '@/components/branding/AppBrandMark'
 import { AdminPanelCard } from '@/components/menu/AdminPanelCard'
 import { MenuSkeleton } from '@/components/menu/MenuSkeleton'
 import { Button } from '@/components/ui/Button'
@@ -42,6 +43,7 @@ export default function MenuTab() {
   )
 
   const showSkeleton = loading || (Boolean(user) && profileLoading && !profile)
+  const checkingAdmin = Boolean(user) && !roleResolved
   const showAdminPanel = Boolean(user) && roleResolved && isAdmin
   const cartDesc =
     hydrated && itemCount > 0 ? `${itemCount} articole în coș` : 'Vezi coșul'
@@ -50,6 +52,12 @@ export default function MenuTab() {
     profile?.full_name?.trim() || user?.email?.split('@')[0] || 'Oaspete'
 
   const items: MenuItem[] = [
+    {
+      icon: 'library-outline',
+      label: 'Biblioteca mea',
+      desc: user ? 'Workshop-uri și rețete cumpărate' : 'Autentificare necesară',
+      href: user ? '/atelier/library' : '/(auth)/login',
+    },
     {
       icon: 'bag-outline',
       label: 'Coș',
@@ -68,6 +76,12 @@ export default function MenuTab() {
       desc: 'Produse și torturi personalizate',
       href: user ? '/orders' : '/(auth)/login',
     },
+    {
+      icon: 'document-text-outline',
+      label: 'Legal',
+      desc: 'Termeni, confidențialitate, consumatori',
+      href: '/legal',
+    },
   ]
 
   function openItem(item: MenuItem) {
@@ -84,6 +98,10 @@ export default function MenuTab() {
 
   return (
     <Screen>
+      <View style={styles.brandRow}>
+        <AppBrandMark />
+      </View>
+
       <Card style={styles.profileCard}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{displayName.charAt(0).toUpperCase()}</Text>
@@ -110,6 +128,16 @@ export default function MenuTab() {
         </View>
       ) : null}
 
+      {checkingAdmin ? (
+        <View style={styles.checkingAdmin}>
+          <Text style={styles.checkingAdminText}>Se verifică accesul admin…</Text>
+        </View>
+      ) : null}
+
+      {showAdminPanel ? (
+        <AdminPanelCard onPress={() => router.push('/admin')} />
+      ) : null}
+
       {items.map((item) => (
         <Pressable
           key={item.label}
@@ -124,10 +152,6 @@ export default function MenuTab() {
           <Ionicons name="chevron-forward" size={20} color={colors.brownMuted} />
         </Pressable>
       ))}
-
-      {showAdminPanel ? (
-        <AdminPanelCard onPress={() => router.push('/admin')} />
-      ) : null}
 
       {!user && (
         <View style={styles.authActions}>
@@ -148,6 +172,7 @@ export default function MenuTab() {
 }
 
 const styles = StyleSheet.create({
+  brandRow: { marginBottom: 12 },
   profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -209,4 +234,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   errorText: { fontSize: 14, color: colors.danger, lineHeight: 20 },
+  checkingAdmin: {
+    padding: 14,
+    marginBottom: 12,
+    borderRadius: 12,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  checkingAdminText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.brownMuted,
+    textAlign: 'center',
+  },
 })

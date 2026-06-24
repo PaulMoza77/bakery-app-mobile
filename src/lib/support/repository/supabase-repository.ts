@@ -101,10 +101,18 @@ export class SupabaseSupportRepository implements SupportRepository {
   ): Promise<SupportThreadRow> {
     const result = await updateSupportThread(threadId, {
       assigned_admin_id: adminId,
-      status: 'escalated',
+      ai_takeover: true,
     })
     if (result.error || !result.data) {
       throw new Error(result.error ?? 'Atribuirea a eșuat.')
+    }
+    return result.data
+  }
+
+  async setAiTakeover(threadId: string): Promise<SupportThreadRow> {
+    const result = await updateSupportThread(threadId, { ai_takeover: true })
+    if (result.error || !result.data) {
+      throw new Error(result.error ?? 'Actualizarea a eșuat.')
     }
     return result.data
   }
@@ -113,6 +121,14 @@ export class SupabaseSupportRepository implements SupportRepository {
     const result = await updateSupportThread(threadId, { status: 'closed' })
     if (result.error || !result.data) {
       throw new Error(result.error ?? 'Închiderea a eșuat.')
+    }
+    return result.data
+  }
+
+  async reopenThread(threadId: string): Promise<SupportThreadRow> {
+    const result = await updateSupportThread(threadId, { status: 'open' })
+    if (result.error || !result.data) {
+      throw new Error(result.error ?? 'Redeschiderea a eșuat.')
     }
     return result.data
   }

@@ -43,8 +43,16 @@ export function RootNavigator() {
         options={{ title: 'Notificări', ...clientStackHeader }}
       />
       <Stack.Screen
-        name="events"
-        options={{ title: 'Evenimente', ...clientStackHeader }}
+        name="atelier/[type]"
+        options={{ title: 'Ateliere', ...clientStackHeader }}
+      />
+      <Stack.Screen
+        name="atelier/product/[id]"
+        options={{ title: 'Detalii', ...clientStackHeader }}
+      />
+      <Stack.Screen
+        name="atelier/library"
+        options={{ title: 'Biblioteca mea', ...clientStackHeader }}
       />
       <Stack.Screen name="admin" options={{ headerShown: false }} />
       <Stack.Screen name="+not-found" />

@@ -42,6 +42,16 @@ export async function updateCategory(id: string, input: Partial<CategoryInput>) 
   })
 }
 
+export async function countProductsInCategory(categoryId: string) {
+  return runQuery<number>(0, async () => {
+    const { count, error } = await supabase!
+      .from('products')
+      .select('id', { count: 'exact', head: true })
+      .eq('category_id', categoryId)
+    return { data: count ?? 0, error }
+  })
+}
+
 export async function deleteCategory(id: string) {
   return runQuery<boolean>(false, async () => {
     const { error } = await supabase!.from('categories').delete().eq('id', id)

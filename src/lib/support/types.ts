@@ -28,6 +28,7 @@ export interface SendClientMessageResult {
   clientMessage: SupportMessageRow
   aiMessage: SupportMessageRow | null
   escalated: boolean
+  aiUnavailable?: boolean
 }
 
 export interface AdminSendMessageInput {

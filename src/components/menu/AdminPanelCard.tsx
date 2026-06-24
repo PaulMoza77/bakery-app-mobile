@@ -12,13 +12,13 @@ export function AdminPanelCard({ onPress }: AdminPanelCardProps) {
       onPress={onPress}
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
       accessibilityRole="button"
-      accessibilityLabel="Admin Panel"
+      accessibilityLabel="Panou admin"
     >
       <View style={styles.iconWrap}>
         <Ionicons name="shield-checkmark" size={24} color={colors.white} />
       </View>
       <View style={styles.body}>
-        <Text style={styles.label}>Admin Panel</Text>
+        <Text style={styles.label}>Panou admin</Text>
         <Text style={styles.desc}>Produse, comenzi, torturi și setări magazin</Text>
       </View>
       <Ionicons name="chevron-forward" size={22} color={colors.accent} />
